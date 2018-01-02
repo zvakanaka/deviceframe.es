@@ -123,3 +123,45 @@ body.working #videoFile {
   text-align: left;
   flex-grow: 1;
 }
+
+/* */
+.stats {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-family: monospace;
+  font-size: 2em;
+  margin-right: 1em;
+}
+.stats.hidden {
+  visibility: hidden;
+}
+.sidebar {
+  font-size: .25em;
+  position: absolute;
+  top: 0;
+  left: 0;
+  background: white;
+  color: black;
+  width: 300px;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  justify-content: flex-start;
+  padding: 1em;
+}
+
+.code {
+  font-family: monospace;
+  background: black;
+  color: lime;
+}
+
+.preset-params, #out-filename {
+  margin-bottom: 2em;
+}
+.license {
+  bottom: 0;
+  position: absolute;
+  font-size: small;
+}

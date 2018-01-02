@@ -3,22 +3,6 @@
     <title>Android Device Framer</title>
     <meta name="description" content="Accepts an Android Screen recording and will put an Android Device Frame around it.">
     <meta name="viewport" content="width=device-width">
-    <meta name="twitter:creator" content="@Paul_Kinlan">
-    <script type="application/ld+json">
-      {
-        "@context": "http://schema.org",
-        "@type": "Person",
-        "name": "Paul Kinlan",
-        "url": "https://paul.kinlan.me/",
-        "sameAs": [
-          "https://twitter.com/paul_kinlan",
-          "https://www.instagram.com/paul_kinlan/",
-          "https://www.linkedin.com/in/paulkinlan",
-          "https://plus.google.com/+paulkinlan",
-          "https://github.com/paulkinlan"
-        ]
-      }
-    </script>
     <link rel="stylesheet" href="./css/main.css">
     <meta name="theme-color" content="#FF9800">
     <link rel="manifest" href="./manifest.json">
@@ -44,7 +28,30 @@
         });
       };
 
-      const backgroundImageRequest = fetch('./assets/n6-background.mp4');
+      var currentSecond;
+      var totalSeconds;
+      let presets = {
+        'cut': {
+          fields: [
+            { name: 'Start second', id: 'start-second', elType: 'input.number', dataType: 'Number', default: function (stats) {
+              return 0;
+            } },
+            { name: 'Terminate second', id: 'terminate-second', elType: 'input.number', dataType: 'Number', default: function (stats) {
+              return stats.totalSeconds || 0;
+            } }
+          ],
+          getParams: function () {
+            const startSecond = document.querySelector('#start-second').value;
+            const terminateSecond = document.querySelector('#terminate-second').value;
+            return `-ss ${startSecond} -t ${terminateSecond} -async 1`.split(' ');
+          }
+        }
+      };
+
+      function setPercentage(percent) {
+        document.querySelector('.percentage').textContent = percent;
+        document.title = `${percent}%`;
+      }
 
       const start = function(file) {
         document.body.classList.add('working');
@@ -52,17 +59,39 @@
         let inputVideo = document.getElementById('inputVideo');
 
         inputVideo.src = urlToVideo;
-        
 
         ffmpeg.videoReady.then(function() {
           // the video has completed processing
+          setPercentage(100);
           document.body.classList.remove('working');
         });
 
         const logEl = document.getElementById('log');
 
+        function timeToSeconds(time) {
+          let timeUnits = time.split(':').map(s => parseFloat(s, 10)); // NOTE: it would be precise to convert the last number to a float
+          let hours = timeUnits[0];
+          let minutes = timeUnits[1];
+          let seconds = timeUnits[2];
+          let totalSeconds = hours * 60 * 60 + minutes * 60 + seconds;
+          return totalSeconds;
+        }
+
+        var percentDone;
         ffmpeg.stderr = function(msg) {
-          logEl.innerText += msg.data + "\n";
+          if (msg.data.includes('Duration: ')) {
+            // NOTE: there is a start (and there may be an end), which can later be calculated into duration
+            let durationStr = msg.data.split('Duration: ')[1].split(', ')[0];
+            // TODO: should probably get totalSeconds from HTML5 video .duration (faster)
+            totalSeconds = timeToSeconds(durationStr);
+            document.querySelector('.stats').classList.remove('hidden');
+          } else if (msg.data.includes('time=')) {
+            let timeStr = msg.data.split('time=')[1].split(' bitrate=')[0];
+            currentSecond = timeToSeconds(timeStr);
+            percentDone = currentSecond / totalSeconds * 100;
+            setPercentage(parseInt(percentDone, 10));
+          }
+          logEl.innerText += msg.data + '\n';
           logEl.scrollTop = logEl.scrollHeight;
         };
 
@@ -71,17 +100,20 @@
           return loadFile(file);
         })
         .then(function(arrayBuffer) {
-          // We have the file that the user has input, now load the
-          backgroundImageRequest.then(function(response) {
-            return response.arrayBuffer();
-          })
-          .then(function(responsebuffer) {
+          // We have the file that the user has input
+          const encodeButton = document.querySelector('.encode-button');
+          encodeButton.onclick = function () {
+            const outFilename = document.querySelector('#out-filename').value.length > 0 ? document.querySelector('#out-filename').value : 'output.mp4';
             ffmpeg.run([
-              {name: 'n6-background.mp4', data: responsebuffer},
-              {name: file.name, data: arrayBuffer}
-              ]
+                {name: file.name, data: arrayBuffer}
+              ],
+              [
+                presets[document.querySelector('.preset-list').value].getParams()
+              ],
+              outFilename
             );
-          });
+          }
+          encodeButton.disabled = false;
         });
       }
 
@@ -91,7 +123,7 @@
           document.body.classList.remove('loading');
         });
 
-        fileInput = document.getElementById("videoFile");
+        fileInput = document.getElementById('videoFile');
         fileInput.onchange = function(e) {
           start(e.target.files[0]);
         };
@@ -99,7 +131,7 @@
 
       ffmpeg.videoReady.then(function(data) {
         var buffer = data.MEMFS[0].data;
-        download(new Blob( [ buffer ], { type: "video/mp4" } ));
+        download(new Blob( [ buffer ], { type: 'video/mp4' } ));
       });
 
       function download(blob) {
@@ -107,7 +139,8 @@
         var a = document.createElement('a');
         a.style.display = 'none';
         a.href = url;
-        a.download = 'test.mp4';
+        const outFilename = document.querySelector('#out-filename').value.length > 0 ? document.querySelector('#out-filename').value : 'output.mp4';
+        a.download = outFilename;
         document.body.appendChild(a);
         a.click();
         setTimeout(function() {
@@ -121,7 +154,7 @@
           e.preventDefault(); // Necessary. Allows us to drop.
         }
 
-        if(e.dataTransfer.items[0].type.indexOf('video/') != 0 
+        if(e.dataTransfer.items[0].type.indexOf('video/') != 0
            && e.dataTransfer.files[0].type.indexOf('video/') !=0) {
           document.body.classList.add('badfile');
           return false;
@@ -167,6 +200,41 @@
 
   <body draggable class="loading">
     <p id="loading">Loading the system... wait one moment</p>
+    <div class="hidden stats">
+      <span class="percentage">0</span><span>%</span>
+    </div>
+    <div class="sidebar">
+      <select class="preset-list">
+        <option value="convertToMp4">Default</option>
+        <option value="cut">Cut</option>
+      </select>
+
+      <!-- <input type="text" id="encoding-params" class="code" value=""> -->
+      <div class="preset-params"></div>
+      <script>
+        const presetList = document.querySelector('.preset-list');
+        const encodingParams = document.querySelector('#encoding-params');
+        presetList.onchange = function () {
+          const preset = presets[presetList.value];
+          const stats = { currentSecond, totalSeconds };
+          presetParams = document.querySelector('.preset-params');
+          presetParams.innerHTML = '';
+          preset.fields.forEach(field => {
+            const elType = field.elType.split('.')[0];
+            const fieldEl = document.createElement(elType);
+            if (field.elType.split('.').length > 1) fieldEl.type = field.elType.split('.')[1];
+            fieldEl.id = field.id;
+            fieldEl.value = field.default(stats);
+            presetParams.appendChild(fieldEl);
+          });
+        }
+      </script>
+
+      <label for="out-filename">Output Filename</label>
+      <input type="text" id="out-filename" value="">
+
+      <button type="button" disabled class="encode-button">Encode</button>
+    </div>
     <label for="videoFile">Select or drop a video file</label>
     <input type="file" name="videoFile" id="videoFile" accept="video/*">
     <div id="working">Encoding video. It may be some time.</div>
@@ -178,15 +246,8 @@
         <pre id="log"></pre>
       </div>
     </div>
-    <script>
-  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
-  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
-  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
-  })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
-
-  ga('create', 'UA-88398808-1', 'auto');
-  ga('send', 'pageview');
-
-</script>
+    <div class="license">
+      This project is a fork of <a href="https://github.com/PaulKinlan/deviceframe.es">deviceframe.es</a>
+    </div>
   </body>
 </html>
