@@ -31,6 +31,12 @@
       var currentSecond;
       var totalSeconds;
       let presets = {
+        'default': {
+          fields: [],
+          getParams: function () {
+            return [];
+          }
+        },
         'cut': {
           fields: [
             { name: 'Start second', id: 'start-second', elType: 'input.number', dataType: 'Number', default: function (stats) {
@@ -43,7 +49,19 @@
           getParams: function () {
             const startSecond = document.querySelector('#start-second').value;
             const terminateSecond = document.querySelector('#terminate-second').value;
-            return `-ss ${startSecond} -t ${terminateSecond} -async 1`.split(' ');
+            return `-ss ${startSecond} -t ${terminateSecond - startSecond} -async 1 -c copy`.split(' ');
+          }
+        },
+        'rotate': {
+          fields: [
+            { name: 'Angle (1,2,3)', id: 'angle', elType: 'input.number', dataType: 'Number', default: function (stats) {
+              return 0;
+            } }
+          ],
+          getParams: function () {
+            // angle=1 is clockwise
+            const angle = document.querySelector('#angle').value;
+            return `-vf rotate=${angle} -acodec copy`.split(' ');
           }
         }
       };
@@ -103,6 +121,7 @@
           // We have the file that the user has input
           const encodeButton = document.querySelector('.encode-button');
           encodeButton.onclick = function () {
+            console.log('About to process', presets[document.querySelector('.preset-list').value].getParams());
             const outFilename = document.querySelector('#out-filename').value.length > 0 ? document.querySelector('#out-filename').value : 'output.mp4';
             ffmpeg.run([
                 {name: file.name, data: arrayBuffer}
@@ -153,7 +172,6 @@
         if (e.preventDefault) {
           e.preventDefault(); // Necessary. Allows us to drop.
         }
-
         if(e.dataTransfer.items[0].type.indexOf('video/') != 0
            && e.dataTransfer.files[0].type.indexOf('video/') !=0) {
           document.body.classList.add('badfile');
@@ -190,7 +208,7 @@
         if(e.dataTransfer.items[0].type.indexOf('video/') != 0) {
           return false;
         }
-
+        console.log(e.dataTransfer.items.length);
         start(e.dataTransfer.files[0]);
 
         return false;
@@ -205,8 +223,9 @@
     </div>
     <div class="sidebar">
       <select class="preset-list">
-        <option value="convertToMp4">Default</option>
+        <option value="default">Default</option>
         <option value="cut">Cut</option>
+        <!-- <option value="rotate">Rotate</option> -->
       </select>
 
       <!-- <input type="text" id="encoding-params" class="code" value=""> -->
@@ -225,6 +244,11 @@
             if (field.elType.split('.').length > 1) fieldEl.type = field.elType.split('.')[1];
             fieldEl.id = field.id;
             fieldEl.value = field.default(stats);
+
+            const label = document.createElement('label');
+            label.textContent = `${field.name}`;
+
+            presetParams.appendChild(label);
             presetParams.appendChild(fieldEl);
           });
         }
@@ -240,7 +264,7 @@
     <div id="working">Encoding video. It may be some time.</div>
     <div id="output">
       <div id="preview">
-        <video id="inputVideo"></video>
+        <video id="inputVideo" controls></video>
       </div>
       <div id="outputlog">
         <pre id="log"></pre>
