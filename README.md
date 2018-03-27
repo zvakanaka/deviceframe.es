@@ -1,4 +1,3 @@
-Accepts a video file as input and will put an Android Device
-Frame around it.
+Drag and drop video files to compress/cut them.
 
 [Demo](https://zvakanaka.github.io/deviceframe.es/)

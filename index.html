@@ -49,7 +49,7 @@
           getParams: function () {
             const startSecond = document.querySelector('#start-second').value;
             const terminateSecond = document.querySelector('#terminate-second').value;
-            return `-ss ${startSecond} -t ${terminateSecond - startSecond} -async 1 -c copy`.split(' ');
+            return `-ss ${startSecond} -t ${terminateSecond - startSecond} -async 1 -c copy -movflags faststart`.split(' ');
           }
         },
         'rotate': {
